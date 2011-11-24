@@ -1,0 +1,23 @@
+{
+  "name": "Subject",
+  "version": "0.0.0",
+  "description": "objects",
+  "scripts": {
+    "test": "node test"
+  },
+  "devDependencies": {
+    "test": ">=0.4.3",
+    "sinon": ">=1.2.0"
+  },
+  "dependencies": {
+    "compose": ">=0.1.2"
+  },
+  "engines": {
+    "node": "*"
+  },
+  "author": "Ben Hockey <neonstalwart@gmail.com>",
+  "repository": {
+    "url": ""
+  },
+  "main": "Subject.js"
+}
