@@ -9,13 +9,13 @@ function (require, exports, module, undefined) {
 
 	module.exports = testCase({
 		'test Subject has a defineProperty function': function () {
-			assert.equal(typeof Subject.defineProperty, 'function');
+			assert.equal(typeof Subject.defineProperty, 'function', 'define property is a function');
 		},
 
 		'test defineProperty': testCase({
 			'test a valid descriptor does not throw': function () {
 				assert.doesNotThrow(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							value: 'foo'
 						})
@@ -25,37 +25,37 @@ function (require, exports, module, undefined) {
 
 			'test a bad descriptor throws a TypeError': function () {
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty('abc')
 					});
-				}, TypeError);
+				}, TypeError, 'bad descriptor throws TypeError');
 			},
 
 			'test a bad getter throws a TypeError': function () {
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							get: 'abc'
 						})
 					});
-				}, TypeError);
+				}, TypeError, 'bad getter throws TypeError');
 			},
 
 			'test a bad setter throws a TypeError': function () {
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							set: 'abc'
 						})
 					});
-				}, TypeError);
+				}, TypeError, 'bad setter throws TypeError');
 			},
 
 			'test a confused descriptor throws a TypeError': function () {
 				var spy = this.spy();
 
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							set: spy,
 							value: 'a'
@@ -63,7 +63,7 @@ function (require, exports, module, undefined) {
 					});
 				}, TypeError, 'set and value');
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							set: spy,
 							writable: true
@@ -71,7 +71,7 @@ function (require, exports, module, undefined) {
 					});
 				}, TypeError, 'set and writable');
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							get: spy,
 							value: 'a'
@@ -79,7 +79,7 @@ function (require, exports, module, undefined) {
 					});
 				}, TypeError, 'get and value');
 				assert.throws(function () {
-					compose(Subject, {
+					Subject.extend({
 						foo: Subject.defineProperty({
 							get: spy,
 							writable: true
@@ -102,11 +102,11 @@ function (require, exports, module, undefined) {
 
 			'test value is assigned': function () {
 				var value = 'value',
-					test = compose.create(Subject, {
+					test = compose.create(Subject.extend({
 						foo: Subject.defineProperty({
 							value: value
 						})
-					});
+					}));
 
 				assert.equal(test.get('foo'), value, 'value should be assigned');
 				assert.throws(function () {
@@ -117,72 +117,80 @@ function (require, exports, module, undefined) {
 
 			'test writable is observed': function () {
 				var value = 'value',
-					test = compose.create(Subject, {
+					test = compose.create(Subject.extend({
 						foo: Subject.defineProperty({
 							value: value,
 							writable: true
 						})
-					});
+					}));
 
-				assert.equal(test.get('foo'), value);
+				assert.equal(test.get('foo'), value, '`writable: true` can be get');
 				test.set('foo', 'abcd');
-				assert.equal(test.get('foo'), 'abcd', 'writable should be observed');
+				assert.equal(test.get('foo'), 'abcd', '`writable: true` can be set');
 			},
 
-			'test get is called with key': function () {
+			'test calling get': function () {
 				var foo = 'foo',
 					get = this.stub().returns(foo),
-					test = compose.create(Subject, {
+					test = compose.create(Subject.extend({
 						foo: Subject.defineProperty({
 							get: get
 						})
-					});
+					}));
 
 				assert.equal(test.get('foo'), foo, 'returns value');
-
-				assert.ok(get.alwaysCalledWithExactly('foo'), 'expected args');
 				assert.ok(get.alwaysCalledOn(test), 'expected context');
 			},
 
-			'test set is called with key and value': function () {
+			'test calling set is called with value': function () {
 				var foo = 'foo',
 					set = this.stub().returns(foo),
-					test = compose.create(Subject, {
+					test = compose.create(Subject.extend({
 						foo: Subject.defineProperty({
 							set: set
 						})
-					});
+					}));
 
-				assert.equal(test.set('foo', foo), foo);
-
-				assert.ok(set.alwaysCalledWithExactly('foo', foo));
-				assert.ok(set.alwaysCalledOn(test));
+				assert.equal(test.set('foo', foo), foo, 'returns value');
+				assert.ok(set.alwaysCalledWithExactly(foo), 'expected args');
+				assert.ok(set.alwaysCalledOn(test), 'expected context');
 			},
 
 			'test setting value without setter throws TypeError': function () {
 				var foo = 'foo',
 					get = this.spy(),
-					test = compose.create(Subject, {
+					test = compose.create(Subject.extend({
 						foo: Subject.defineProperty({
 							get: get
 						})
-					});
+					}));
 
 				assert.throws(function () {
 					test.set('foo', foo);
-				}, TypeError);
+				}, TypeError, 'setting without setter throws TypeError');
 			},
 
 			'test getting value without getter returns undefined': function () {
 				var foo = 'foo',
 					set = this.stub().returns(foo),
-					test = compose.create(Subject, {
+					test = compose.create(Subject.extend({
 						foo: Subject.defineProperty({
 							set: set
 						})
-					});
+					}));
 
 				assert.equal(test.get('foo'), undefined, 'return undefined without getter');
+			},
+
+			'test properties without descriptors can be set and get': function () {
+				var foo = 'foo',
+					bar = 'bar',
+					test = compose.create(Subject.extend({
+						foo: foo
+					}));
+
+				assert.equal(test.get('foo'), foo, 'getting without descriptor');
+				assert.equal(test.set('bar', bar), bar, 'setting without descriptor');
 			}
 		})
 	});

@@ -20,7 +20,7 @@ function (require, exports, module, undefined) {
 	}
 
 	function setter(key, value) {
-		var descriptor = this.constructor._descriptors[key],
+		var descriptor = this._subject.descriptors[key],
 			writable = descriptor._accessor || descriptor.writable;
 
 		if (!writable) {
@@ -38,7 +38,8 @@ function (require, exports, module, undefined) {
 
 	module.exports = Subject = compose({
 		get: function (key) {
-			var descriptors = this.constructor._descriptors,
+			var subject = this._subject || {},
+				descriptors = subject.descriptors || {},
 				descriptor = descriptors[key] || {},
 				get = descriptor.get;
 
@@ -46,15 +47,19 @@ function (require, exports, module, undefined) {
 				return this[key];
 			}
 
-			if (get === getter && descriptor._accessor) {
-				return;
+			if (!get) {
+				if (descriptor._accessor) {
+					return;
+				}
+				return getter.call(this, key);
 			}
 
-			return descriptors[key].get.call(this, key);
+			return get.call(this);
 		},
 
 		set: function (key, value) {
-			var descriptors = this.constructor._descriptors,
+			var subject = this._subject || {},
+				descriptors = subject.descriptors || {},
 				descriptor = descriptors[key] || {},
 				set = descriptor.set;
 
@@ -62,11 +67,14 @@ function (require, exports, module, undefined) {
 				return (this[key] = value);
 			}
 
-			if (set === setter && descriptor._accessor) {
-				throw new TypeError('Cannot set property ' + key + ' of ' + this + ' which has only a getter');
+			if (!set) {
+				if (descriptor._accessor) {
+					throw new TypeError('Cannot set property ' + key + ' of ' + this + ' which has only a getter');
+				}
+				return setter.call(this, key, value);
 			}
 
-			return set.call(this, key, value);
+			return set.call(this, value);
 		}
 	});
 
@@ -82,7 +90,8 @@ function (require, exports, module, undefined) {
 		return new compose.Decorator(function (key) {
 			// adapted from https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Object/defineProperties
 			var d = {},
-				descriptors = this.constructor._descriptors || (this.constructor._descriptors = {}),
+				subject = this._subject || (this._subject = {}),
+				descriptors = subject.descriptors || (subject.descriptors = {}),
 				get,
 				set;
 
@@ -106,24 +115,11 @@ function (require, exports, module, undefined) {
 			}
 
 			if (useNative) {
-				// curry the key if using native
-				if (get) {
-					d.get = function () {
-						return get.call(this, key);
-					};
-				}
-				if (set) {
-					d.set = function (value) {
-						return set.call(this, key, value);
-					};
-				}
 				Object.defineProperty(this, key, d);
 			}
 			else {
 				// XXX: configurable and enumerable are unsupported in this branch
 				d._accessor = ('get' in d || 'set' in d);
-				d.get || (d.get = getter);
-				d.set || (d.set = setter);
 				descriptors[key] = d;
 				if ('value' in d) {
 					this[key] = d.value;
