@@ -1,9 +1,11 @@
 # Subject
-a subject is slightly different to an object
+ * dependent
+ * target
+ * object
 
 ## Description
 [composable](https://github.com/kriszyp/compose) property descriptors.
-defers to [`Object.defineProperty`](https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Object/defineProperty) when available.
+defers to native [`Object.defineProperty`](https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Object/defineProperty) when suitable.
 by calling `set` and `get`, much of what is provided by `Object.defineProperty` can be achieved.
 
 ## Examples
@@ -55,18 +57,8 @@ var it = compose.create(Subject, {
 it.set('foo', 'abc'); // calls set from the property descriptor
 ```
 
-**NOTE:** the function signature for `get` and `set` are slightly different to those used with `Object.defineProperty`
-
-```js
-	get: function (key) {
-
-	},
-	set: function (key, value) {
-
-	}
-```
-also, `configurable` and `enumerable` are not supported when not deferring to `Object.defineProperty`
+**NOTE:* `configurable` and `enumerable` are not supported when not deferring to `Object.defineProperty`
 
 ## LICENSE
-New BSD
+[BSD](http://www.opensource.org/licenses/bsd-license.php)
 Copyright (c) 2011, Ben Hockey
