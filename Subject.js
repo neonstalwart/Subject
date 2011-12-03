@@ -14,29 +14,20 @@ function (require, exports, module, undefined) {
 		return hasNative();
 	}
 
-	function getter(key) {
-		// TODO: is there a way to emulate enumerable with a "hidden" object
-		return this[key];
-	}
-
-	function setter(key, value) {
-		var descriptor = this._subject.descriptors[key],
-			writable = descriptor._accessor || descriptor.writable;
-
-		if (!writable) {
-			throw new TypeError("Cannot assign to read only property '" + key + "' of " + this);
-		}
-
-		// TODO: is there a way to emulate enumerable with a "hidden" object
-		return (this[key] = value);
-	}
-
 	var compose = require('compose'),
 		Subject,
 		hasOwn = Object.prototype.hasOwnProperty,
 		useNative;
 
-	module.exports = Subject = compose({
+	module.exports = Subject = compose(function () {
+		var subject = this._subject || {},
+			descriptors = subject.descriptors;
+
+		if (useNative && descriptors) {
+			Object.defineProperties(this, descriptors);
+		}
+	},
+	{
 		get: function (key) {
 			var subject = this._subject || {},
 				descriptors = subject.descriptors || {},
@@ -51,13 +42,14 @@ function (require, exports, module, undefined) {
 				if (descriptor._accessor) {
 					return;
 				}
-				return getter.call(this, key);
+				return this[key];
 			}
 
 			return get.call(this);
 		},
 
 		set: function (key, value) {
+			console.log('setting', key, value);
 			var subject = this._subject || {},
 				descriptors = subject.descriptors || {},
 				descriptor = descriptors[key] || {},
@@ -71,7 +63,13 @@ function (require, exports, module, undefined) {
 				if (descriptor._accessor) {
 					throw new TypeError('Cannot set property ' + key + ' of ' + this + ' which has only a getter');
 				}
-				return setter.call(this, key, value);
+
+				if (!descriptor.writable) {
+					throw new TypeError('Cannot assign to read only property \'' + key + '\' of ' + this);
+				}
+
+				// TODO: is there a way to emulate enumerable with a "hidden" object
+				return (this[key] = value);
 			}
 
 			return set.call(this, value);
@@ -114,17 +112,14 @@ function (require, exports, module, undefined) {
 				throw new TypeError('Invalid property. A property cannot both have accessors and be writable or have a value, ' + descriptor);
 			}
 
-			if (useNative) {
-				Object.defineProperty(this, key, d);
-			}
-			else {
+			if (!useNative) {
 				// XXX: configurable and enumerable are unsupported in this branch
 				d._accessor = ('get' in d || 'set' in d);
-				descriptors[key] = d;
 				if ('value' in d) {
 					this[key] = d.value;
 				}
 			}
+			descriptors[key] = d;
 		});
 	};
 });

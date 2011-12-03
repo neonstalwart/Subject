@@ -3,8 +3,7 @@ function (require, exports, module, undefined) {
 	'use strict';
 
 	var Subject = require('./Subject'),
-		args = process.argv.slice(2),
-		arg;
+		args = process.argv.slice(2);
 
 	while (args.length) {
 		if (args.shift().match(/^--useNative/)) Subject.useNative = true;

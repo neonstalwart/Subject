@@ -110,8 +110,8 @@ function (require, exports, module, undefined) {
 
 				assert.equal(test.get('foo'), value, 'value should be assigned');
 				assert.throws(function () {
-					test.set('foo', 'value');
-				});
+					test.set('foo', 'new');
+				}, TypeError, 'setting non-writable should throw');
 				assert.equal(test.get('foo'), value, 'writable should be false');
 			},
 
