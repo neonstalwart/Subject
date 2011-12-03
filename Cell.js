@@ -20,12 +20,19 @@ function (require, exports, module, undefined) {
 		hasOwn = Object.prototype.hasOwnProperty,
 		useNative;
 
-	module.exports = Cell = compose(function () {
+	module.exports = Cell = compose(function (mixin) {
 		var cell = this._cell || (this._cell = {}),
-			descriptors = cell.descriptors;
+			descriptors = cell.descriptors || {},
+			p, val;
 
 		if (useNative && descriptors) {
 			Object.defineProperties(this, descriptors);
+		}
+
+		for (p in mixin) {
+			val = mixin[p];
+			if (typeof val !== 'function') this.set(p, val);
+			else this[p] = val;
 		}
 	},
 	{

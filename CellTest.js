@@ -191,6 +191,21 @@ function (require, exports, module, undefined) {
 
 				assert.equal(test.get('foo'), foo, 'getting without descriptor');
 				assert.equal(test.set('bar', bar), bar, 'setting without descriptor');
+			},
+
+			'test constructor calls set for each property in mixin': function () {
+				var mixin = {
+						a: 'a',
+						b: 'b'
+					},
+					Ctor = Cell.extend({
+						set: this.spy()
+					}),
+					cell = new Ctor(mixin);
+
+				Object.keys(mixin).forEach(function (key) {
+					assert.ok(cell.set.calledWith(key, mixin[key]), 'constructor called set for ' + key);
+				});
 			}
 		})
 	});
