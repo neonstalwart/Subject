@@ -2,17 +2,19 @@
 function (require, exports, module, undefined) {
 	'use strict';
 
-	var Subject = require('./Subject'),
+	var Cell = require('./Cell'),
 		args = process.argv.slice(2);
 
 	while (args.length) {
-		if (args.shift().match(/^--useNative/)) Subject.useNative = true;
+		if (args.shift().match(/^--useNative/)) Cell.useNative = true;
 	}
 
 	// force a value regardless of the environment
-	Subject.useNative = !!Subject.useNative;
+	Cell.useNative = !!Cell.useNative;
 
+	exports['test Cell'] = require('./CellTest');
 	exports['test Subject'] = require('./SubjectTest');
+	exports['test List'] = require('./ListTest');
 
 	if (module == require.main) require('test').run(module.exports);
 });
