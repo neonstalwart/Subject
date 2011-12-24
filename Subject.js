@@ -2,124 +2,92 @@
 function (require, exports, module, undefined) {
 	'use strict';
 
-	function hasNative() {
-		// TODO: write test to avoid faulty implementation in IE8
-		return typeof Object.defineProperty === 'function';
+	function notify(handlers, key, old, value, context) {
+		handlers.iterate(function (handler) {
+			handler.call(context, key, old, value);
+		});
 	}
-
-	function shouldUseNative() {
-		if ('useNative' in module.exports) {
-			return module.exports.useNative;
-		}
-		return hasNative();
-	}
-
 	var compose = require('compose'),
-		Subject,
-		hasOwn = Object.prototype.hasOwnProperty,
-		useNative;
+		Cell = require('./Cell'),
+		List = require('./List'),
+		frame,
+		Subject;
 
-	module.exports = Subject = compose(function () {
-		var subject = this._subject || {},
-			descriptors = subject.descriptors;
+	module.exports = Subject = Cell.extend({
+		get: compose.around(function (get) {
+			return function (key) {
+				var subject = this._subject || (this._subject = {}),
+					// list of observers for this property
+					handlers = subject[key] || (subject[key] = new List()),
+					// a list of watches for properties we have as dependents
+					deps = handlers.deps,
+					self = this,
+					// remember previous frame so we can restore it
+					prev = frame,
+					// the value to return from get
+					value;
 
-		if (useNative && descriptors) {
-			Object.defineProperties(this, descriptors);
-		}
-	},
-	{
-		get: function (key) {
-			var subject = this._subject || {},
-				descriptors = subject.descriptors || {},
-				descriptor = descriptors[key] || {},
-				get = descriptor.get;
-
-			if (useNative || !(key in descriptors)) {
-				return this[key];
-			}
-
-			if (!get) {
-				if (descriptor._accessor) {
-					return;
-				}
-				return this[key];
-			}
-
-			return get.call(this);
-		},
-
-		set: function (key, value) {
-			console.log('setting', key, value);
-			var subject = this._subject || {},
-				descriptors = subject.descriptors || {},
-				descriptor = descriptors[key] || {},
-				set = descriptor.set;
-
-			if (useNative || !(key in descriptors)) {
-				return (this[key] = value);
-			}
-
-			if (!set) {
-				if (descriptor._accessor) {
-					throw new TypeError('Cannot set property ' + key + ' of ' + this + ' which has only a getter');
+				// add this property as a dependent to the existing frame
+				if (frame) {
+					frame.push({
+						context: this,
+						key: key
+					});
 				}
 
-				if (!descriptor.writable) {
-					throw new TypeError('Cannot assign to read only property \'' + key + '\' of ' + this);
+				if (deps) {
+					// remove watches from previous list of dependents
+					deps.iterate(function (handle) {
+						handle.unwatch();
+					});
 				}
 
-				// TODO: is there a way to emulate enumerable with a "hidden" object
-				return (this[key] = value);
-			}
+				// create a new list of dependents for this frame
+				frame = new List();
 
-			return set.call(this, value);
+				// do the actual get
+				value = get.call(this, key);
+
+				// watch the properties we depend on
+				deps = handlers.deps = new List();
+				frame.iterate(function (dependent) {
+					// remember each handle so we can reset before the next get
+					deps.push(dependent.context.watch(dependent.key, function () {
+						// notify our observers when one of our dependents change
+						notify(handlers, key, value, get.call(self, key), self);
+					}));
+				});
+
+				// put the frame back to what it was
+				frame = prev;
+
+				// return the value for get
+				return value;
+			};
+		}),
+
+		set: compose.around(function (set) {
+			return function (key) {
+				var subject = this._subject || {},
+					handlers = subject[key],
+					// current is needed to be consistent with dojo/Stateful's notify
+					current = this.get(key),
+					value = set.apply(this, arguments);
+
+				if (handlers) {
+					notify(handlers, key, current, value, this);
+				}
+
+				return value;
+			};
+		}),
+
+		watch: function (prop, handler) {
+			var subject = this._subject || (this._subject = {}),
+				handlers = subject[prop] || (subject[prop] = new List());
+			return {
+				unwatch: handlers.push(handler)
+			};
 		}
 	});
-
-	Subject.defineProperty = function (descriptor) {
-		if (!descriptor || typeof descriptor !== 'object') {
-			throw new TypeError('Property description must be an object: ' + descriptor);
-		}
-
-		if (typeof useNative === 'undefined') {
-			useNative = shouldUseNative();
-		}
-
-		return new compose.Decorator(function (key) {
-			// adapted from https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Object/defineProperties
-			var d = {},
-				subject = this._subject || (this._subject = {}),
-				descriptors = subject.descriptors || (subject.descriptors = {}),
-				get,
-				set;
-
-			if (hasOwn.call(descriptor, 'enumerable')) d.enumerable = !!descriptor.enumerable;
-			if (hasOwn.call(descriptor, 'configurable')) d.configurable = !!descriptor.configurable;
-			if (hasOwn.call(descriptor, 'value')) d.value = descriptor.value;
-			if (hasOwn.call(descriptor, 'writable')) d.writable = !!descriptor.writable;
-			if (hasOwn.call(descriptor, 'get')) {
-				get = descriptor.get;
-				if (typeof get !== 'function') throw new TypeError('Getter must be a function: ' + get);
-				d.get = get;
-			}
-			if (hasOwn.call(descriptor, 'set')) {
-				set = descriptor.set;
-				if (typeof set !== 'function') throw new TypeError('Setter must be a function: ' + get);
-				d.set = set;
-			}
-
-			if (('get' in d || 'set' in d) && ('value' in d || 'writable' in d)) {
-				throw new TypeError('Invalid property. A property cannot both have accessors and be writable or have a value, ' + descriptor);
-			}
-
-			if (!useNative) {
-				// XXX: configurable and enumerable are unsupported in this branch
-				d._accessor = ('get' in d || 'set' in d);
-				if ('value' in d) {
-					this[key] = d.value;
-				}
-			}
-			descriptors[key] = d;
-		});
-	};
 });

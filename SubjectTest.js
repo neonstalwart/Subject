@@ -4,195 +4,81 @@ function (require, exports, module, undefined) {
 
 	var assert = require('assert'),
 		compose = require('compose'),
+		Cell = require('./Cell'),
 		Subject = require('./Subject'),
 		testCase = require('./test/promiseTestCase');
 
 	module.exports = testCase({
-		'test Subject has a defineProperty function': function () {
-			assert.equal(typeof Subject.defineProperty, 'function', 'define property is a function');
+		'test Subject has a watch function': function () {
+			var subject = compose.create(Subject);
+
+			assert.equal(typeof subject.watch, 'function', 'must have a watch function');
 		},
 
-		'test defineProperty': testCase({
-			'test a valid descriptor does not throw': function () {
-				assert.doesNotThrow(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							value: 'foo'
-						})
-					});
-				});
-			},
+		'test watchers for a property are called when the property is set': function () {
+			var subject = compose.create(Subject),
+				watch = this.spy(),
+				prop = 'foo',
+				value = 'bar',
+				old = subject[prop];
 
-			'test a bad descriptor throws a TypeError': function () {
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty('abc')
-					});
-				}, TypeError, 'bad descriptor throws TypeError');
-			},
+			subject.watch(prop, watch);
+			subject.set(prop, value);
 
-			'test a bad getter throws a TypeError': function () {
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							get: 'abc'
-						})
-					});
-				}, TypeError, 'bad getter throws TypeError');
-			},
+			assert.ok(watch.calledWithExactly(prop, old, value), 'watcher called when property set');
+			assert.ok(watch.calledOn(subject), 'watcher called in context of subject');
+		},
 
-			'test a bad setter throws a TypeError': function () {
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							set: 'abc'
-						})
-					});
-				}, TypeError, 'bad setter throws TypeError');
-			},
+		'test calling watch returns an `unwatch` handle': function () {
+			var subject = compose.create(Subject),
+				watch = this.spy(),
+				prop = 'foo',
+				value = 'bar',
+				handle = subject.watch(prop, watch);
 
-			'test a confused descriptor throws a TypeError': function () {
-				var spy = this.spy();
+			assert.ok(handle, 'watch returns a handle');
+			assert.equal(typeof handle.unwatch, 'function', 'remove handle returned from watch');
 
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							set: spy,
-							value: 'a'
-						})
-					});
-				}, TypeError, 'set and value');
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							set: spy,
-							writable: true
-						})
-					});
-				}, TypeError, 'set and writable');
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							get: spy,
-							value: 'a'
-						})
-					});
-				}, TypeError, 'get and value');
-				assert.throws(function () {
-					Subject.extend({
-						foo: Subject.defineProperty({
-							get: spy,
-							writable: true
-						})
-					});
-				}, TypeError, 'get and writable');
-			},
+			handle.unwatch();
+			subject.set(prop, value);
+			assert.ok(!watch.called, 'unwatch should stop callbacks');
+		},
 
-			'test an empty descriptor observes default behavior': function () {
-				var test = compose.create(Subject, {
-						foo: Subject.defineProperty({})
-					});
+		'test getting a property causes it to depend on what it `get`s': function () {
+			var Box = Subject.extend({
+					volume: Cell.defineProperty({
+						get: function () {
+							return this.get('height') * this.get('width') * this.get('length');
+						}
+					})
+				}),
+				height = 20,
+				width = 20,
+				length = 3,
+				initialVolume = height * width * length,
+				box = new Box({
+					height: height,
+					width: width,
+					length: length
+				}),
+				watch = this.spy(),
+				handle;
 
-				assert.equal(test.get('foo'), undefined, 'value should be undefined');
-				assert.throws(function () {
-					test.set('foo', 'value');
-				});
-				assert.equal(test.get('foo'), undefined, 'writable should be false');
-			},
+			assert.equal(box.get('volume'), initialVolume, 'initial volume of box');
+			handle = box.watch('volume', watch);
 
-			'test value is assigned': function () {
-				var value = 'value',
-					test = compose.create(Subject.extend({
-						foo: Subject.defineProperty({
-							value: value
-						})
-					}));
+			height = 10;
+			box.set('height', height);
+			assert.ok(watch.calledWith('volume', initialVolume, height * width * length), 'dependent changed');
+			assert.equal(1, watch.callCount, 'computed watch should only be called once');
 
-				assert.equal(test.get('foo'), value, 'value should be assigned');
-				assert.throws(function () {
-					test.set('foo', 'new');
-				}, TypeError, 'setting non-writable should throw');
-				assert.equal(test.get('foo'), value, 'writable should be false');
-			},
+			box.set('height', 50);
+			assert.equal(2, watch.callCount, 'computed watch should still be active');
 
-			'test writable is observed': function () {
-				var value = 'value',
-					test = compose.create(Subject.extend({
-						foo: Subject.defineProperty({
-							value: value,
-							writable: true
-						})
-					}));
-
-				assert.equal(test.get('foo'), value, '`writable: true` can be get');
-				test.set('foo', 'abcd');
-				assert.equal(test.get('foo'), 'abcd', '`writable: true` can be set');
-			},
-
-			'test calling get': function () {
-				var foo = 'foo',
-					get = this.stub().returns(foo),
-					test = compose.create(Subject.extend({
-						foo: Subject.defineProperty({
-							get: get
-						})
-					}));
-
-				assert.equal(test.get('foo'), foo, 'returns value');
-				assert.ok(get.alwaysCalledOn(test), 'expected context');
-			},
-
-			'test calling set is called with value': function () {
-				var foo = 'foo',
-					set = this.stub().returns(foo),
-					test = compose.create(Subject.extend({
-						foo: Subject.defineProperty({
-							set: set
-						})
-					}));
-
-				assert.equal(test.set('foo', foo), foo, 'returns value');
-				assert.ok(set.alwaysCalledWithExactly(foo), 'expected args');
-				assert.ok(set.alwaysCalledOn(test), 'expected context');
-			},
-
-			'test setting value without setter throws TypeError': function () {
-				var foo = 'foo',
-					get = this.spy(),
-					test = compose.create(Subject.extend({
-						foo: Subject.defineProperty({
-							get: get
-						})
-					}));
-
-				assert.throws(function () {
-					test.set('foo', foo);
-				}, TypeError, 'setting without setter throws TypeError');
-			},
-
-			'test getting value without getter returns undefined': function () {
-				var foo = 'foo',
-					set = this.stub().returns(foo),
-					test = compose.create(Subject.extend({
-						foo: Subject.defineProperty({
-							set: set
-						})
-					}));
-
-				assert.equal(test.get('foo'), undefined, 'return undefined without getter');
-			},
-
-			'test properties without descriptors can be set and get': function () {
-				var foo = 'foo',
-					bar = 'bar',
-					test = compose.create(Subject.extend({
-						foo: foo
-					}));
-
-				assert.equal(test.get('foo'), foo, 'getting without descriptor');
-				assert.equal(test.set('bar', bar), bar, 'setting without descriptor');
-			}
-		})
+			handle.unwatch();
+			box.set('height', 20);
+			assert.equal(2, watch.callCount, 'computed watch should be removed');
+		}
 	});
 
 	if (module == require.main) require('test').run(module.exports);
